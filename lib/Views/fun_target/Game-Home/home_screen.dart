@@ -5,9 +5,10 @@ import 'dart:async';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:funroullete_new/Constant/shared_preference.dart';
 import 'package:funroullete_new/Constant/audio-player.dart';
+import 'package:funroullete_new/Constant/shared_preference.dart';
 import 'package:funroullete_new/Model/result-history-model.dart';
+import 'package:funroullete_new/Provider/profile_provider.dart';
 import 'package:funroullete_new/Provider/result_history_provider.dart';
 import 'package:funroullete_new/Provider/result_provider.dart';
 import 'package:funroullete_new/Views/fun_target/Game-Home/big_chakra.dart';
@@ -18,7 +19,6 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:provider/provider.dart';
 import '../../../Constant/assets.dart';
 import '../../../Constant/color.dart';
-import '../../../Provider/profile_provider.dart';
 import '../../../Utils/message_utils.dart';
 import '../../../main.dart';
 import '../../Constant-Widgets/Container/Container_widget.dart';
@@ -32,7 +32,7 @@ class ButtonChips {
 }
 
 class HomePageScreen extends StatefulWidget {
-  const HomePageScreen({super.key});
+  const HomePageScreen({Key? key}) : super(key: key);
 
   @override
   State<HomePageScreen> createState() => _HomePageScreenState();
@@ -40,8 +40,6 @@ class HomePageScreen extends StatefulWidget {
 
 class _HomePageScreenState extends State<HomePageScreen> {
 
-  // late FocusNode _focusNode1;
-  // late FocusNode _focusNode2;
   final FocusNode _focusNode1 = FocusNode();
   final FocusNode _focusNode2 = FocusNode();
 
@@ -173,6 +171,8 @@ class _HomePageScreenState extends State<HomePageScreen> {
   }
 
   void matchResultWithUserBet() {
+    final resultJokerStatus = Provider.of<ResultProvider>(context, listen: false).result!.jokerStatus;
+
     if (isBetOk) {
       bool foundWinner = false;
       for (BetOnNumbers bet in getBetOnNumber) {
@@ -180,7 +180,7 @@ class _HomePageScreenState extends State<HomePageScreen> {
           pauseNetworkSound();
           // playNetworkSound("https://kgfgold.in/assets/music/winnerclap.mp3");
           setState(() {
-            winnerAmount = bet.betApplied * 9;
+            winnerAmount = resultJokerStatus=="1"?bet.betApplied * 9 * 2:bet.betApplied * 9;
             needToTake = true;
             countdownTimer!.cancel();
             isViewResult = true;
@@ -264,28 +264,60 @@ class _HomePageScreenState extends State<HomePageScreen> {
     }
   }
 
-
   void updateBetValue(int number) {
     setState(() {
-      if (number >= 0 && number <= 10) {
-        tapToPlaceBetOnNumberAction(number);
+      if (number >= 0 && number <= 9) {
+        tapToPlaceBetOnNumberActionKeyboard(number);
       }
     });
   }
 
-  void tapToPlaceBetOnNumberAction(int index) {
-    if (isBetOk == false && isBetAllowed) {
+  void tapToPlaceBetOnNumberActionKeyboard(int number) {
+    if (!isBetOk && isBetAllowed) {
       setState(() {
-        // placeBetValue = SharedPreferencesUtil.getChipsValue();
         placeBetValue = selectedChip;
         if (placeBetValue <= amount) {
-          amount = amount - placeBetValue;
-          betNumbersList[index].betApplied = betNumbersList[index].betApplied + placeBetValue;
+          amount -= placeBetValue;
+          int index = betNumbersList.indexWhere((bet) => bet.number == number);
+          if (index != -1) {
+            betNumbersList[index].betApplied += placeBetValue;
+            int elementIndex = getBetOnNumber.indexWhere((bet) => bet.number == number);
+            if (elementIndex != -1) {
+              getBetOnNumber[elementIndex].betApplied += placeBetValue;
+            } else {
+              getBetOnNumber.add(
+                BetOnNumbers(number: number, betApplied: placeBetValue),
+              );
+            }
+            totalBetApplied = betNumbersList.fold(0, (previousValue, element) => previousValue + element.betApplied,
+            );
+          }
+        } else {
+          Utils.errorToastMessage("You have low balance", context);
+        }
+      });
+    } else {
+      Utils.snackBar("Bet not allowed", context);
+    }
+  }
+
+  void tapToPlaceBetOnNumberAction(int index) {
+    if (!isBetOk && isBetAllowed) {
+      setState(() {
+        placeBetValue = selectedChip;
+
+        if (placeBetValue <= amount) {
+          amount -= placeBetValue;
+
+          int actualNumber = betNumbersList[index].number;
+
+          betNumbersList[index].betApplied += placeBetValue;
+
           if (getBetOnNumber.isNotEmpty) {
             pauseNetworkSound();
-            // playNetworkSound("https://kgfgold.in/assets/music/placechip.mp3");
+
             int elementIndex =
-            getBetOnNumber.indexWhere((bet) => bet.number == index);
+            getBetOnNumber.indexWhere((bet) => bet.number == actualNumber);
 
             if (elementIndex != -1) {
               pauseNetworkSound();
@@ -297,7 +329,7 @@ class _HomePageScreenState extends State<HomePageScreen> {
               pauseNetworkSound();
               setState(() {
                 getBetOnNumber.add(
-                  BetOnNumbers(number: index, betApplied: placeBetValue),
+                  BetOnNumbers(number: actualNumber, betApplied: placeBetValue),
                 );
               });
             }
@@ -306,19 +338,73 @@ class _HomePageScreenState extends State<HomePageScreen> {
             // playNetworkSound("https://kgfgold.in/assets/music/placechip.mp3");
             setState(() {
               getBetOnNumber.add(
-                BetOnNumbers(number: index, betApplied: placeBetValue),
+                BetOnNumbers(number: actualNumber, betApplied: placeBetValue),
               );
             });
           }
-          totalBetApplied = betNumbersList.fold(0, (previousValue, element) => previousValue + element.betApplied);
+
+          totalBetApplied = betNumbersList.fold(
+            0,
+                (previousValue, element) => previousValue + element.betApplied,
+          );
         } else {
-          Utils.errorToastMessage("You have low balance",context);
+          Utils.errorToastMessage("You have low balance", context);
         }
       });
     } else {
-      Utils.snackBar("bet not allowed", context);
+      // Show a snackbar message if betting is not allowed
+      Utils.snackBar("Bet not allowed", context);
     }
   }
+
+
+  ///sir ka oldest code
+  // void tapToPlaceBetOnNumberAction(int index) {
+  //   if (isBetOk == false && isBetAllowed) {
+  //     setState(() {
+  //       // placeBetValue = SharedPreferencesUtil.getChipsValue();
+  //       placeBetValue = selectedChip;
+  //       if (placeBetValue <= amount) {
+  //         amount = amount - placeBetValue;
+  //         betNumbersList[index].betApplied = betNumbersList[index].betApplied + placeBetValue;
+  //         if (getBetOnNumber.isNotEmpty) {
+  //           pauseNetworkSound();
+  //           // playNetworkSound("https://kgfgold.in/assets/music/placechip.mp3");
+  //           int elementIndex = getBetOnNumber.indexWhere((bet) => bet.number == index);
+  //
+  //           if (elementIndex != -1) {
+  //             pauseNetworkSound();
+  //             // playNetworkSound("https://kgfgold.in/assets/music/placechip.mp3");
+  //             setState(() {
+  //               getBetOnNumber[elementIndex].betApplied += placeBetValue;
+  //             });
+  //           } else {
+  //             pauseNetworkSound();
+  //             setState(() {
+  //               getBetOnNumber.add(
+  //                 BetOnNumbers(number: index, betApplied: placeBetValue),
+  //               );
+  //             });
+  //           }
+  //         } else {
+  //           pauseNetworkSound();
+  //           // playNetworkSound("https://kgfgold.in/assets/music/placechip.mp3");
+  //           setState(() {
+  //             getBetOnNumber.add(
+  //               BetOnNumbers(number: index, betApplied: placeBetValue),
+  //             );
+  //           });
+  //         }
+  //         totalBetApplied = betNumbersList.fold(0,
+  //                 (previousValue, element) => previousValue + element.betApplied);
+  //       } else {
+  //         Utils.errorToastMessage("You have low balance",context);
+  //       }
+  //     });
+  //   } else {
+  //     Utils.snackBar("bet not allowed", context);
+  //   }
+  // }
 
   void repeatPreviousBet() {
     if (isBetOk == false &&
@@ -634,9 +720,7 @@ class _HomePageScreenState extends State<HomePageScreen> {
                         _focusNode2.requestFocus();
                         if (needToTake) {
                           try {
-                            await context
-                                .read<WinningAmountService>()
-                                .InsertWinningAmount(context,winnerAmount);
+                            await context.read<WinningAmountService>().InsertWinningAmount(context,winnerAmount);
                             setState(() {
                               amount += winnerAmount;
                               needToTake = false;
@@ -780,14 +864,13 @@ class _HomePageScreenState extends State<HomePageScreen> {
               event.logicalKey == LogicalKeyboardKey.digit7 ||
               event.logicalKey == LogicalKeyboardKey.digit8 ||
               event.logicalKey == LogicalKeyboardKey.digit9) {
-            int number = int.parse(event.character ?? '0');
-            updateBetValue(number);
+            int index = int.parse(event.character ?? '0');
+            updateBetValue(index);
             if (kDebugMode) {
-              print(number);
+              print(index);
               print("number hua keyboard se");
             }
           }
-          // Detect if the key pressed is from the numeric keypad (NumLock)
           else if (event.logicalKey == LogicalKeyboardKey.numpad0 ||
               event.logicalKey == LogicalKeyboardKey.numpad1 ||
               event.logicalKey == LogicalKeyboardKey.numpad2 ||
@@ -798,10 +881,9 @@ class _HomePageScreenState extends State<HomePageScreen> {
               event.logicalKey == LogicalKeyboardKey.numpad7 ||
               event.logicalKey == LogicalKeyboardKey.numpad8 ||
               event.logicalKey == LogicalKeyboardKey.numpad9) {
-            int number = int.parse(event.character ?? '0');
-            updateBetValue(number);
+            int index = int.parse(event.character ?? '0');
+            updateBetValue(index);
           }
-
           if (kDebugMode) {
             print("Key Pressed number : ${event.logicalKey}");
           }
@@ -809,7 +891,6 @@ class _HomePageScreenState extends State<HomePageScreen> {
       },
       child: InkWell(
         onTap: () {
-          // _toggleFocus(_focusNode2,_focusNode1);
           _focusNode1.requestFocus();
           tapToPlaceBetOnNumberAction(index);
         },
@@ -859,23 +940,6 @@ class _HomePageScreenState extends State<HomePageScreen> {
                     shape: BoxShape.circle,
                     color: betValue == 0 ? Colors.transparent : Colors.green,
                   ),
-                  // betValue == 0
-                  //     ? Colors.transparent
-                  //     : betValue < 5
-                  //         ? Colors.green
-                  //         : betValue < 10
-                  //             ? Colors.yellow
-                  //             : betValue < 50
-                  //                 ? Colors.pink
-                  //                 : betValue < 100
-                  //                     ? Colors.red
-                  //                     : betValue < 500
-                  //                         ? Colors.blue
-                  //                         : betValue < 1000
-                  //                             ? Colors.pink
-                  //                             : betValue < 5000
-                  //                                 ? Colors.orange
-                  //                                 : Colors.purple),
                   child: Small_Text(
                       alignment: Alignment.center,
                       Title: betNumbersList[index].number.toString(),
@@ -1006,6 +1070,7 @@ class _HomePageScreenState extends State<HomePageScreen> {
           CustomContainer(
             widths: width / 9,
             height: height / 11,
+
             image: const DecorationImage(
                 image: AssetImage(Graphics.buttonLeft), fit: BoxFit.fitWidth),
             child: Small_Text(
@@ -1056,6 +1121,7 @@ class _HomePageScreenState extends State<HomePageScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final resultJokerStatus =  Provider.of<ResultProvider>(context).result!.jokerStatus;
     return Scaffold(
       backgroundColor: ColorConstant.darkBlackColor,
       body: Center(
@@ -1097,7 +1163,8 @@ class _HomePageScreenState extends State<HomePageScreen> {
                         widths: width / 11,
                         child: isTimerDone == false
                             ? Image.asset(Graphics.vdoMain)
-                            : Image.asset(Graphics.chotaChkra))
+                            : resultJokerStatus=="1"?Image.asset(Graphics.joker):Image.asset(Graphics.chotaChkra)
+                    )
                   ],
                 ),
               ),

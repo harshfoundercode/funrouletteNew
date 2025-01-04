@@ -41,6 +41,7 @@ class Graphics{
  static const fiftyPoint= "assets/chipbuttons/50.png";
  static const chotaChkra= "assets/staticCoin.png";
  static const twinningStar= "assets/twin.png";
+ static const joker= "assets/assets/joker.png";
  //video
  static const vdoMain = "assets/vdo/main.gif";
  // music

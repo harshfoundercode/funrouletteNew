@@ -22,12 +22,14 @@ class ResultHistoryData {
   final String sNumber;
   final String result;
   final String status;
+  final String jokerStatus;
 
   ResultHistoryData({
     required this.id,
     required this.sNumber,
     required this.result,
     required this.status,
+    required this.jokerStatus,
   });
 
   factory ResultHistoryData.fromJson(Map<String, dynamic> json) {
@@ -36,6 +38,7 @@ class ResultHistoryData {
       sNumber: json['s_number'],
       result: json['result'],
       status: json['status'],
+      jokerStatus: json['joker_status'],
     );
   }
 }
